@@ -1,2 +1,2 @@
-# DS50---D-tection-de-la-maladie-r-nale
+# DS50-Detection-de-maladie-renale
 Projet Data science pour détecter la maladie rénale..
