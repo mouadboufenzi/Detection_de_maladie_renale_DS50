@@ -15,8 +15,8 @@ Projet de Data Science pour la classification des patients atteints de maladie r
 - ELBOKAILI Khalil
 - DIOUF Falou Sergine
 - Yangran Liu
-- 
-- ## Requirements
+ 
+## Requirements
 numpy
 pandas
 matplotlib
