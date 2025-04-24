@@ -1,20 +1,21 @@
-# cleaning.py
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+import numpy as np
 
-def clean_dataset(df):
-    df.fillna(df.mode().iloc[0], inplace=True)
+def clean_data(df):
+    # Replace '?' with NaN
+    df.replace('?', np.nan, inplace=True)
+    
+    # Convert all columns to appropriate types
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='ignore')
+    
+    # Drop rows with any NaN
+    df.dropna(inplace=True)
 
-    le = LabelEncoder()
-    df['classification'] = le.fit_transform(df['classification'])
-
-    for col in ['pcv', 'wc', 'rc']:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    num_columns = df.select_dtypes(include=['float64', 'int64']).columns
-    df[num_columns] = df[num_columns].fillna(df[num_columns].mean())
-
-    cat_columns = df.select_dtypes(include=['object']).columns
-    df[cat_columns] = df[cat_columns].apply(lambda x: x.fillna(x.mode()[0]))
+    # Clean and normalize the target
+    if 'classification' in df.columns:
+        df['classification'] = df['classification'].astype(str).str.strip().str.lower()
+        df['classification'] = df['classification'].replace({'ckd': 1, 'notckd': 0, 'ckd\t': 1})
 
     return df
+

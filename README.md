@@ -23,3 +23,7 @@ matplotlib
 seaborn
 scikit-learn
 jupyter/VisualStudio
+
+## Run this command to install all the requirements
+pip install -r requirements.txt
+

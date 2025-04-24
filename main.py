@@ -1,72 +1,144 @@
 import streamlit as st
 import pandas as pd
-import subprocess
-from src import load_data, cleaning, explore_data, visualize_data, predict
+from io import StringIO, BytesIO
+import joblib
 
-st.set_page_config(page_title="Détection Maladie Rénale", layout="wide")
-st.title("🧪 Détection de la Maladie Rénale")
+from src.load_data import load_dataset
+from src.cleaning import clean_data
+from src.transform import encode_and_scale
+from src.explore_data import show_missing_data, plot_distributions
+from src.visualize_data import show_correlation_matrix, plot_boxplots
+from src.model_training import compare_models_with_cv, plot_heatmap
+from src.feature_selection import select_important_features
+from sklearn.model_selection import train_test_split
+from src.model_evaluation import evaluate_model_on_test, plot_confusion
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 
-# File uploader
-uploaded_file = st.file_uploader("📁 Importer un fichier CSV", type=["csv"])
+st.set_page_config(page_title="CKD Detection", layout="wide")
+st.title("🔬 Chronic Kidney Disease Detection App")
 
-# Charger les données dans la session si uploadé
-if uploaded_file is not None:
-    st.session_state.df = pd.read_csv(uploaded_file)
-    st.success("Données chargées avec succès !")
+st.markdown("### 📁 Step 1: Upload Dataset")
+uploaded_file = st.file_uploader("Upload your CKD dataset CSV", type=["csv"])
 
-# Vérification si les données sont disponibles
-if 'df' in st.session_state and st.session_state.df is not None:
-    df = st.session_state.df
-    st.subheader("🔍 Aperçu des données")
-    st.dataframe(df.head())
+def download_buffer(df):
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    return csv_buffer.getvalue()
 
-    # Nettoyage simple
-    if st.button("🧼 Nettoyage simple (dropna)"):
-        df = cleaning.clean_dataset(df)
-        st.session_state.df = df
-        st.success("Nettoyage simple effectué.")
+if uploaded_file:
+    df = load_dataset(uploaded_file)
+    st.session_state.raw_df = df
+    st.success("✅ Dataset loaded successfully!")
+    st.write(df.head())
 
-    # Nettoyage avancé
-    if st.button("🔧 Nettoyage avancé"):
-        df = cleaning.clean_dataset(df)
-        st.session_state.df = df
-        st.success("Nettoyage avancé effectué.")
+    st.markdown("### 🧹 Step 2: Data Cleaning")
+    df_cleaned = clean_data(df)
+    st.session_state.df_cleaned = df_cleaned
+    st.success("✅ Cleaning completed!")
+    st.write(df_cleaned.head())
+    show_missing_data(df_cleaned)
 
-    # Exploration
-    if st.button("📊 Explorer les données"):
-        st.write("Données du DataFrame")
-        st.dataframe(df)
+    st.markdown("### 📊 Step 3: Exploratory Data Analysis")
+    plot_distributions(df_cleaned, cols_per_row=4)
 
-    # Visualisations
-    if st.button("📊 Valeurs manquantes"):
-        visualize_data.show_missing_values(df)
+    st.markdown("### 📦 Step 4: Outlier Detection")
+    plot_boxplots(df_cleaned, cols_per_row=4)
 
-    if st.button("📈 Distribution des classes"):
-        visualize_data.plot_class_distribution(df)
+    st.markdown("### 🔗 Step 5: Correlation Matrix")
+    show_correlation_matrix(df_cleaned)
 
-    if st.button("📉 Histogrammes"):
-        visualize_data.plot_histograms(df)
+    st.markdown("### 🧬 Step 6: Encoding and Scaling")
+    df_transformed, encoders, scaler = encode_and_scale(df_cleaned)
+    st.session_state.df_transformed = df_transformed
+    st.success("✅ Data encoded and scaled!")
+    st.write(df_transformed.head())
 
-    if st.button("🧮 Matrice de corrélation"):
-        visualize_data.plot_correlation_matrix(df)
+    st.markdown("### 🔎 Step 7: Feature Selection")
+    df_selected = select_important_features(df_transformed, top_k=10)
+    st.session_state.df_selected = df_selected
+    st.success("✅ 10 important features selected!")
+    st.write(df_selected.head())
 
-    if st.button("📦 Boxplots des variables"):
-        visualize_data.plot_boxplots(df)
-    if st.button("🔧 Entraîner le modèle"):
-    # Utiliser subprocess pour appeler le script Python d'entraînement
-        try:
-            st.info("L'entraînement du modèle commence...")
-            result = subprocess.run(["python", "train_model.py"], capture_output=True, text=True)
-            st.success("Modèle entraîné et sauvegardé avec succès !")
-            st.text(result.stdout)  # Afficher les logs de sortie
-        except Exception as e:
-            st.error(f"Erreur lors de l'entraînement : {e}")
-    
-    # Prédiction
-    if st.button("🔮 Prédire la maladie rénale"):
-        # On peut ici créer un sous-ensemble des données (une ligne à la fois ou un groupe de données)
-        # Par exemple, ici on prend la première ligne du DataFrame pour prédiction
-        prediction_result = predict.predict_result(df.iloc[0:1])  # Prédiction sur la première ligne
-        st.write(f"Résultat de la prédiction: {prediction_result}")
-else:
-    st.info("➡️ Importez un fichier CSV pour commencer.")
+    st.markdown("### 💾 Step 8: Download Clean Data")
+
+    # Split the selected data
+    X = st.session_state.df_selected.drop(columns=["classification"])
+    y = st.session_state.df_selected["classification"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Save them to session state
+    st.session_state.X_train = X_train
+    st.session_state.X_test = X_test
+    st.session_state.y_train = y_train
+    st.session_state.y_test = y_test
+
+    # Prepare files for download
+    train_df = pd.concat([X_train, y_train], axis=1)
+    test_df = X_test  # 'classification' intentionally removed
+
+    st.download_button("⬇️ Download Train Dataset", data=download_buffer(train_df), file_name="train_data.csv")
+    st.download_button("⬇️ Download Test Dataset", data=download_buffer(test_df), file_name="test_data.csv")
+
+    # ─────────────────────────────────────────────
+    # STEP 9: MODEL TRAINING AND EVALUATION (TRAINING SET)
+    # ─────────────────────────────────────────────
+    st.markdown("### 🤖 Step 9: Model Training and Evaluation")
+
+    # Retrieve training set from session state
+    X_train = st.session_state.X_train
+    y_train = st.session_state.y_train
+
+    # Train and compare models
+    results_df = compare_models_with_cv(X_train, y_train)
+
+    st.subheader("📊 Model Comparison on Training Set (5-fold CV)")
+    st.dataframe(results_df)
+
+    # Plot heatmap
+    st.pyplot(plot_heatmap(results_df).gcf())
+
+    # 🧪 Step 10: Evaluate Best Model on Test Set
+    st.markdown("### 🧪 Step 10: Final Evaluation on Test Set")
+
+    # Re-train models and pick the one with best CV score
+    models = {
+        "Random Forest": RandomForestClassifier(random_state=42),
+        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+        "SVM": SVC(probability=True, random_state=42)
+    }
+
+    best_model_name = results_df["Accuracy"].idxmax()
+    best_model = models[best_model_name]
+    best_model.fit(X_train, y_train)
+
+    # Evaluate on test data
+    eval_results = evaluate_model_on_test(best_model, X_test, y_test)
+
+    st.subheader(f"✅ Evaluation of {best_model_name} on Test Data")
+    st.write(f"**Accuracy**: {eval_results['Accuracy']:.4f}")
+    st.write(f"**ROC AUC**: {eval_results['ROC AUC']:.4f}")
+    st.write(f"**Precision**: {eval_results['Precision']:.4f}")
+    st.write(f"**Recall**: {eval_results['Recall']:.4f}")
+    st.json(eval_results["Classification Report"])
+
+    # Display confusion matrix
+    st.subheader("🔍 Confusion Matrix")
+    st.pyplot(plot_confusion(eval_results["Confusion Matrix"]))
+
+    # 💾 Step 11: Save and Export Best Model
+    st.markdown("### 💾 Step 11: Save and Export Best Model")
+
+    # Save the model to a temporary buffer
+    model_buffer = BytesIO()
+    joblib.dump(best_model, model_buffer)
+    model_buffer.seek(0)
+
+    st.download_button(
+        label="⬇️ Download Trained Model (.joblib)",
+        data=model_buffer,
+        file_name=f"{best_model_name.replace(' ', '_').lower()}_ckd_model.joblib",
+        mime="application/octet-stream"
+    )
+
