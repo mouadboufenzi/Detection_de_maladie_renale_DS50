@@ -5,11 +5,14 @@ import joblib
 
 from src.load_data import load_dataset
 from src.cleaning import clean_data
-from src.transform import encode_and_scale
+# Yangran modified
+# from src.transform import encode_and_scale
+# from src.feature_selection import select_important_features
+from src.transform import prepare_features
+from src.feature_selection import RFSelect
 from src.explore_data import show_missing_data, plot_distributions
 from src.visualize_data import show_correlation_matrix, plot_boxplots
 from src.model_training import compare_models_with_cv, plot_heatmap
-from src.feature_selection import select_important_features
 from sklearn.model_selection import train_test_split
 from src.model_evaluation import evaluate_model_on_test, plot_confusion
 from sklearn.ensemble import RandomForestClassifier
@@ -49,15 +52,48 @@ if uploaded_file:
     st.markdown("### 🔗 Step 5: Correlation Matrix")
     show_correlation_matrix(df_cleaned)
 
-    st.markdown("### 🧬 Step 6: Encoding and Scaling")
-    df_transformed, encoders, scaler = encode_and_scale(df_cleaned)
+    # Yangran modified
+    # st.markdown("### 🧬 Step 6: Encoding and Scaling")
+    # df_transformed, encoders, scaler = encode_and_scale(df_cleaned)
+    # st.session_state.df_transformed = df_transformed
+    # st.success("✅ Data encoded and scaled!")
+    # st.write(df_transformed.head())
+    
+    # st.markdown("### 🔎 Step 7: Feature Selection")
+    # df_selected = select_important_features(df_transformed, top_k=10)
+    # st.session_state.df_selected = df_selected
+    # st.success("✅ 10 important features selected!")
+    # st.write(df_selected.head())
+
+    # 🧬 Step 6: Preprocessing  (RobustScaler etc.)
+    st.markdown("### 🧬 Step 6: Preprocessing")
+    # prepare_features() 只在训练阶段 fit=True
+    X_np, y_np, preproc = prepare_features(df_cleaned, fit=True)
+    
+    # ndarray ↔ DataFrame（colom from preproc）
+    feature_names = preproc.get_feature_names_out()
+    df_transformed = pd.DataFrame(X_np, columns=feature_names)
+    df_transformed["classification"] = y_np
+    
     st.session_state.df_transformed = df_transformed
-    st.success("✅ Data encoded and scaled!")
+    st.session_state.preprocessor = preproc          # can reuse further
+    
+    st.success("✅ Preprocessing completed!")
     st.write(df_transformed.head())
 
+    # 🔎 Step 7: Feature Selection  (RF embedded)
     st.markdown("### 🔎 Step 7: Feature Selection")
-    df_selected = select_important_features(df_transformed, top_k=10)
+
+    X_fs = df_transformed.drop(columns=["classification"])
+    y_fs = df_transformed["classification"]
+
+    selector = RFSelect(top_k=10)
+    X_sel = selector.fit_transform(X_fs, y_fs)        # returns DataFrame
+
+    df_selected = pd.concat([X_sel, y_fs], axis=1)
+
     st.session_state.df_selected = df_selected
+    st.session_state.selector = selector
     st.success("✅ 10 important features selected!")
     st.write(df_selected.head())
 
