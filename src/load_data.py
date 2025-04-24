@@ -1,9 +1,8 @@
 import pandas as pd
-import streamlit as st
+import numpy as np
 
-def load_csv():
-    uploaded_file = st.file_uploader("Choisir un fichier CSV", type=["csv"])
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        return df
-    return None
+def load_dataset(file):
+    df = pd.read_csv(file)
+    df.replace('?', np.nan, inplace=True)
+    df.columns = [col.strip().lower() for col in df.columns]
+    return df

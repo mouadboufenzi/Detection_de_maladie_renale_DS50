@@ -1,54 +1,40 @@
-import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-def show_missing_values(df):
-    plt.figure(figsize=(12,6))
-    sns.heatmap(df.isnull(), yticklabels=False, cbar=False)
-    plt.title('Valeurs manquantes par colonne')
-    st.pyplot(plt.gcf()) 
-    plt.clf()
+def plot_boxplots(df, cols_per_row=4):
+    st.markdown("### 📦 Outlier Detection via Boxplots")
+    st.write("Boxplots help us visually detect outliers—extremely high or low values that could distort training or influence model bias.")
 
-def plot_class_distribution(df):
-    plt.figure(figsize=(6,4))
-    sns.countplot(x='classification', data=df)
-    plt.title('Distribution des cas de maladie rénale')
-    st.pyplot(plt.gcf()) 
-    plt.clf()
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+    total = len(numeric_cols)
+    
+    for i in range(0, total, cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j in range(cols_per_row):
+            if i + j < total:
+                col = numeric_cols[i + j]
+                with cols[j]:
+                    fig, ax = plt.subplots()
+                    sns.boxplot(y=df[col], ax=ax)
+                    ax.set_title(f'Boxplot: {col}')
+                    st.pyplot(fig)
 
-def plot_histograms(df):
-    fig = plt.figure(figsize=(15,10))
-    df.hist(ax=fig.gca())
-    plt.tight_layout()
+def show_correlation_matrix(df):
+    st.markdown("### 🔗 Feature Correlation Matrix")
+    st.write("This helps identify relationships between features. Highly correlated features might be redundant. This can also hint at multicollinearity problems.")
+
+    # ✅ Filter only numeric columns before correlation
+    numeric_df = df.select_dtypes(include=['float64', 'int64'])
+
+    if numeric_df.shape[1] < 2:
+        st.warning("Not enough numeric features for correlation matrix.")
+        return
+
+    corr = numeric_df.corr()
+    fig, ax = plt.subplots(figsize=(12, 8))
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True)
     st.pyplot(fig)
-    plt.clf()
-
-def plot_correlation_matrix(df):
-    # Filter only numeric columns for correlation matrix
-    df_numeric = df.select_dtypes(include=['number'])
-
-    # Plot correlation matrix for numeric columns only
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(df_numeric.corr(), annot=True, fmt=".2f", cmap='coolwarm')
-    plt.title('Matrice de corrélation (numeric columns only)')
-    st.pyplot(plt.gcf())
-    plt.clf()
-
-    try:
-        plt.figure(figsize=(12, 8))
-        sns.heatmap(df.corr(), annot=True, fmt=".2f", cmap='coolwarm')
-        plt.title('Matrice de corrélation (entire dataframe)')
-        st.pyplot(plt.gcf())
-        plt.clf()
-    except ValueError:
-        st.warning("The correlation matrix cannot be calculated for non-numeric columns.")
 
 
-def plot_boxplots(df):
-    numeric_columns = df.select_dtypes(include='number').columns
-    for col in numeric_columns:
-        plt.figure(figsize=(6,3))
-        sns.boxplot(x=df[col])
-        plt.title(f'Distribution de {col}')
-        st.pyplot(plt.gcf())
-        plt.clf()
+
