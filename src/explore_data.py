@@ -30,3 +30,26 @@ def plot_distributions(df, cols_per_row=4):
                     ax.set_title(f'Distribution: {col}')
                     st.pyplot(fig)
 
+
+def show_pairplot(df, max_features=5):
+    st.markdown("### 🔍 Pairplot of Numeric Features")
+    st.write("Pairplots allow you to visualize pairwise relationships between features, helping detect clusters, correlations, and outliers.")
+
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+
+    if len(numeric_cols) > max_features:
+        selected_cols = st.multiselect(
+            f"Select up to {max_features} features for pairplot (currently {len(numeric_cols)} numeric features):",
+            numeric_cols,
+            default=numeric_cols[:max_features]
+        )
+    else:
+        selected_cols = numeric_cols
+
+    if len(selected_cols) < 2:
+        st.warning("Please select at least 2 features.")
+        return
+
+    with st.spinner("Generating pairplot..."):
+        fig = sns.pairplot(df[selected_cols].dropna())
+        st.pyplot(fig)

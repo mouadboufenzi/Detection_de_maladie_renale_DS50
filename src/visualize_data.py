@@ -32,8 +32,17 @@ def show_correlation_matrix(df):
         return
 
     corr = numeric_df.corr()
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True)
+    fig, ax = plt.subplots(figsize=(12, 10))  # Increase height for better spacing
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', square=True,
+                annot_kws={"size": 8}, cbar_kws={"shrink": 0.8})
+
+    # Rotate the x and y axis labels for readability
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+
+    # Add tight layout
+    plt.tight_layout()
+
     st.pyplot(fig)
 
 

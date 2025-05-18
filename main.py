@@ -10,7 +10,7 @@ from src.cleaning import clean_data
 # from src.feature_selection import select_important_features
 from src.transform import prepare_features
 from src.feature_selection import RFSelect
-from src.explore_data import show_missing_data, plot_distributions
+from src.explore_data import show_missing_data, plot_distributions, show_pairplot
 from src.visualize_data import show_correlation_matrix, plot_boxplots
 from src.model_training import compare_models_with_cv, plot_heatmap
 from sklearn.model_selection import train_test_split
@@ -21,9 +21,16 @@ from sklearn.svm import SVC
 
 st.set_page_config(page_title="CKD Detection", layout="wide")
 st.title("🔬 Chronic Kidney Disease Detection App")
+"This app guides users through the end-to-end process of detecting Chronic Kidney Disease (CKD) using machine learning. Each step is interactive and visualized to make it accessible for people with or without a technical background."
 
 st.markdown("### 📁 Step 1: Upload Dataset")
+"-Goal: Load your CKD dataset (CSV format) into the app."
+
+"The user uploads a .csv file containing medical features like blood pressure, sugar levels, etc."
+
+"Once uploaded, we display the first few rows of the raw data using st.write(df.head()) to give a quick preview."
 uploaded_file = st.file_uploader("Upload your CKD dataset CSV", type=["csv"])
+
 
 def download_buffer(df):
     csv_buffer = StringIO()
@@ -37,6 +44,7 @@ if uploaded_file:
     st.write(df.head())
 
     st.markdown("### 🧹 Step 2: Data Cleaning")
+    "Goal: Clean the raw dataset (handle missing values, data types, etc.)."
     df_cleaned = clean_data(df)
     st.session_state.df_cleaned = df_cleaned
     st.success("✅ Cleaning completed!")
@@ -44,12 +52,16 @@ if uploaded_file:
     show_missing_data(df_cleaned)
 
     st.markdown("### 📊 Step 3: Exploratory Data Analysis")
+    "Goal: Understand data distributions and relationships visually."
     plot_distributions(df_cleaned, cols_per_row=4)
+    show_pairplot(df_cleaned)
 
     st.markdown("### 📦 Step 4: Outlier Detection")
+    "Goal: Identify values that are too high/low (outliers)."
     plot_boxplots(df_cleaned, cols_per_row=4)
 
     st.markdown("### 🔗 Step 5: Correlation Matrix")
+    "Goal: See how strongly features relate to each other."
     show_correlation_matrix(df_cleaned)
 
     # Yangran modified
@@ -67,6 +79,7 @@ if uploaded_file:
 
     # 🧬 Step 6: Preprocessing  (RobustScaler etc.)
     st.markdown("### 🧬 Step 6: Preprocessing")
+    "Goal: Prepare the data for model training."
     # prepare_features() 只在训练阶段 fit=True
     X_np, y_np, preproc = prepare_features(df_cleaned, fit=True)
     
@@ -82,6 +95,7 @@ if uploaded_file:
     st.write(df_transformed.head())
 
     # 🔎 Step 7: Feature Selection  (RF embedded)
+    "Goal: Keep only the most relevant 10 features to improve model accuracy and speed."
     st.markdown("### 🔎 Step 7: Feature Selection")
 
     X_fs = df_transformed.drop(columns=["classification"])
@@ -98,7 +112,15 @@ if uploaded_file:
     st.write(df_selected.head())
 
     st.markdown("### 💾 Step 8: Download Clean Data")
+    "Goal: Allow users to download processed training/testing datasets."
 
+    "We split the data (80% train, 20% test) and give users buttons to download:"
+
+    "-The training set (features + labels)"
+
+    "-The test set (features only)"
+
+    "This enables future model testing or deployment use."
     # Split the selected data
     X = st.session_state.df_selected.drop(columns=["classification"])
     y = st.session_state.df_selected["classification"]
@@ -121,7 +143,15 @@ if uploaded_file:
     # STEP 9: MODEL TRAINING AND EVALUATION (TRAINING SET)
     # ─────────────────────────────────────────────
     st.markdown("### 🤖 Step 9: Model Training and Evaluation")
+    "Goal: Compare different ML models using cross-validation on the training set."
 
+    "Compares models: Random Forest, Logistic Regression, and SVM"
+
+    "Outputs:"
+
+    "A table of performance (accuracy, precision, etc.)"
+
+    "A heatmap showing how each model compares"
     # Retrieve training set from session state
     X_train = st.session_state.X_train
     y_train = st.session_state.y_train
@@ -137,7 +167,17 @@ if uploaded_file:
 
     # 🧪 Step 10: Evaluate Best Model on Test Set
     st.markdown("### 🧪 Step 10: Final Evaluation on Test Set")
+    "Goal: Test the best model on new unseen data (real-world simulation)."
 
+    "The best model (based on CV accuracy) is re-trained and tested on the 20% test set."
+
+    "It displays:"
+
+    "Accuracy, ROC AUC, Precision, Recall"
+
+    "A classification report (per-class metrics)"
+
+    "A confusion matrix"
     # Re-train models and pick the one with best CV score
     models = {
         "Random Forest": RandomForestClassifier(random_state=42),
