@@ -1,6 +1,10 @@
 import streamlit as st
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+
 
 def plot_boxplots(df, cols_per_row=4):
     st.markdown("### 📦 Outlier Detection via Boxplots")
@@ -47,3 +51,38 @@ def show_correlation_matrix(df):
 
 
 
+def plot_pca_projection(df: pd.DataFrame, n_components: int = 2):
+    if "classification" not in df.columns:
+        return None
+
+    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+    if len(numeric_cols) < n_components:
+        return None
+
+    X = df[numeric_cols]
+    y = df["classification"]
+
+    X_scaled = StandardScaler().fit_transform(X)
+    pca = PCA(n_components=n_components)
+    components = pca.fit_transform(X_scaled)
+
+    comp_df = pd.DataFrame(components, columns=[f"PC{i+1}" for i in range(n_components)])
+    comp_df["classification"] = y.values
+
+    fig = plt.figure(figsize=(8, 6))
+    if n_components == 2:
+        sns.scatterplot(data=comp_df, x="PC1", y="PC2", hue="classification", palette="Set2")
+        plt.title("PCA - 2D Projection")
+    else:
+        from mpl_toolkits.mplot3d import Axes3D
+        ax = fig.add_subplot(111, projection='3d')
+        for label in comp_df["classification"].unique():
+            subset = comp_df[comp_df["classification"] == label]
+            ax.scatter(subset["PC1"], subset["PC2"], subset["PC3"], label=label)
+        ax.set_title("PCA - 3D Projection")
+        ax.set_xlabel("PC1")
+        ax.set_ylabel("PC2")
+        ax.set_zlabel("PC3")
+        ax.legend()
+
+    return fig

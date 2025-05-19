@@ -31,11 +31,22 @@ def plot_distributions(df, cols_per_row=4):
                     st.pyplot(fig)
 
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 def show_pairplot(df, max_features=5):
     st.markdown("### 🔍 Pairplot of Numeric Features")
-    st.write("Pairplots allow you to visualize pairwise relationships between features, helping detect clusters, correlations, and outliers.")
+    st.write("""
+        Pairplots allow you to visualize pairwise relationships between features.
+        The colors represent different classes (e.g., presence or absence of CKD), 
+        which helps you spot clusters, correlations, and separations.
+    """)
 
     numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+
+    if "classification" not in df.columns:
+        st.warning("Target column 'classification' not found in the dataset.")
+        return
 
     if len(numeric_cols) > max_features:
         selected_cols = st.multiselect(
@@ -51,5 +62,8 @@ def show_pairplot(df, max_features=5):
         return
 
     with st.spinner("Generating pairplot..."):
-        fig = sns.pairplot(df[selected_cols].dropna())
-        st.pyplot(fig)
+        try:
+            fig = sns.pairplot(df[selected_cols + ["classification"]].dropna(), hue="classification", palette="husl", diag_kind="kde")
+            st.pyplot(fig)
+        except Exception as e:
+            st.error(f"Error generating pairplot: {e}")
