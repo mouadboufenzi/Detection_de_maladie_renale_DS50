@@ -58,7 +58,9 @@ def plot_pca_projection(df: pd.DataFrame, n_components: int = 2):
     numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
     if len(numeric_cols) < n_components:
         return None
-
+    df_dropna = df[numeric_cols + ["classification"]].dropna()
+    if df_dropna.empty:
+        return None
     X = df[numeric_cols]
     y = df["classification"]
 

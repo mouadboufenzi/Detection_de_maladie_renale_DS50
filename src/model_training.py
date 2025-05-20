@@ -1,59 +1,70 @@
 """
-model_training.py  – build leakage-free pipelines, run CV, and
-                     plot a heatmap of CV metrics.
+model_training.py – Build leakage-free pipelines with optional PCA.
 """
 
 from __future__ import annotations
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_validate
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
-
-from src.transform import _build_preprocessor
-from src.feature_selection import RFSelect
 from sklearn.decomposition import PCA
 
+from src.cleaning import DataCleaner
+from src.feature_selection import RFSelect
 
-
-# ──────────────────────────────────────────────────────────────────────
-def _build_pipeline(clf, use_pca=False, n_components=2):
-    prep = _build_preprocessor()
-    prep.set_output(transform="pandas")
-
+# ───────────────────────────────────────────────────────────────
+def _build_pipeline(clf, *, use_pca: bool = False, n_components: int = 2) -> Pipeline:
+    """Cleaner ➜ RFSelect(DataFrame) ➜ StandardScaler ➜ (PCA) ➜ Classifier"""
     steps = [
-        ("prep", prep),
-        ("select", RFSelect(top_k=10)),
+        ("cleaner", DataCleaner(add_missing_indicator=True)),
+        ("selector", RFSelect(top_k=10)),
+        ("scaler",  StandardScaler()),
     ]
 
     if use_pca:
         steps.append(("pca", PCA(n_components=n_components)))
+    else:
+        steps.append(("identity", "passthrough"))
 
-    steps.append(("clf", clf))
+    steps.append(("classifier", clf))
+    return Pipeline(steps, verbose=False)
 
-    return Pipeline(steps)
-
-
-
-# ──────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
 def compare_models_with_cv(
     X_train: pd.DataFrame,
-    y_train,
+    y_train: pd.Series,
+    *,
     cv: int = 5,
     use_pca: bool = False,
     n_components: int = 2,
 ) -> tuple[pd.DataFrame, dict]:
+
     models = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=300, class_weight="balanced", random_state=42
+            n_estimators=300,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
         ),
         "Logistic Regression": LogisticRegression(
-            max_iter=1000, random_state=42
+            max_iter=2000,
+            solver="lbfgs",
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
         ),
-        "SVM": SVC(kernel="rbf", probability=True, random_state=42),
+        "SVM": SVC(
+            kernel="rbf",
+            probability=True,
+            class_weight="balanced",
+            random_state=42,
+        ),
     }
 
     scoring = {
@@ -66,26 +77,47 @@ def compare_models_with_cv(
     results, pipeline_dict = {}, {}
 
     for name, clf in models.items():
-        pipe = _build_pipeline(clf, use_pca=use_pca, n_components=n_components)
-        cv_res = cross_validate(
-            pipe, X_train, y_train,
-            cv=cv, scoring=scoring, n_jobs=-1, error_score="raise"
-        )
+        try:
+            pipe = _build_pipeline(clf, use_pca=use_pca, n_components=n_components)
 
-        results[name] = {
-            k: round(cv_res[f"test_{k}"].mean(), 4) for k in scoring.keys()
-        }
+            cv_res = cross_validate(
+                pipe, X_train, y_train,
+                cv=cv,
+                scoring=scoring,
+                n_jobs=-1,
+                error_score="raise",
+                return_train_score=False,
+            )
 
-        pipeline_dict[name] = _build_pipeline(clf, use_pca=use_pca, n_components=n_components)
+            results[name] = {m: cv_res[f"test_{m}"].mean() for m in scoring}
+            pipeline_dict[name] = pipe
+        except Exception as e:
+            st.error(f"Error with {name}: {e}")
 
-    return pd.DataFrame(results).T, pipeline_dict
+    df = (
+        pd.DataFrame(results).T.sort_values("Accuracy", ascending=False)
+        if results else pd.DataFrame()
+    )
+    return df, pipeline_dict
 
+# ───────────────────────────────────────────────────────────────
+def plot_heatmap(df: pd.DataFrame) -> plt.Figure:
+    """Return a heat-map figure or a placeholder if df 为空"""
+    if df.empty:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No results to display", ha="center", va="center")
+        ax.axis("off")
+        return fig
 
-# ──────────────────────────────────────────────────────────────────────
-def plot_heatmap(df: pd.DataFrame):
-    """Return a matplotlib Figure containing a heatmap of the CV metrics."""
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.heatmap(df, annot=True, cmap="Blues", fmt=".3f", ax=ax)
-    ax.set_title("Cross-validation metrics (mean scores)")
-    fig.tight_layout()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.heatmap(
+        df.T,
+        annot=True, fmt=".3f",
+        cmap="Blues",
+        linewidths=0.5,
+        ax=ax,
+    )
+    ax.set_title("Cross-Validation Metrics (Mean Scores)")
+    ax.set_xlabel("Models")
+    ax.set_ylabel("Metrics")
     return fig
